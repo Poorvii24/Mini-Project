@@ -1,12 +1,12 @@
-Test Accuracy: 99.69%
-ROC AUC: 0.9991
+Test Accuracy: 98.43%
+ROC AUC: 0.9350
 
 Classification Report:
               precision    recall  f1-score   support
 
-      Normal       1.00      1.00      1.00    142433
-      Botnet       0.96      0.86      0.90      2472
+      Normal       0.99      0.99      0.99    171141
+      Botnet       0.48      0.31      0.38      2653
 
-    accuracy                           1.00    144905
-   macro avg       0.98      0.93      0.95    144905
-weighted avg       1.00      1.00      1.00    144905
+    accuracy                           0.98    173794
+   macro avg       0.73      0.65      0.69    173794
+weighted avg       0.98      0.98      0.98    173794
