@@ -204,7 +204,7 @@ def load_model():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     # Ensure this matches your trained model file
     model = TransformerClassifier(input_dim=17) 
-    model_path = "transformer_classifier.pt"
+    model_path = "models/transformer_classifier.pt"
     model.load_state_dict(torch.load(model_path, map_location=device), strict=False)
     model.to(device)
     model.eval()
