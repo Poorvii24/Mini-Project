@@ -81,7 +81,7 @@ def preprocess_live_data(df):
     return scaled_data
 
 # ------------------------------
-# 3. Page Config & ULTRA-VISIBLE THEME
+# 3. Page Config & PREMIUM THEME
 # ------------------------------
 st.set_page_config(
     page_title="BOTNET DEFENSE", 
@@ -92,76 +92,62 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-    /* --- GLOBAL TEXT VISIBILITY BOOST --- */
-    html, body, [class*="css"] {
-        font-family: 'Courier New', monospace;
-        color: #FFFFFF !important;  /* Pure White for Max Contrast */
-        font-size: 20px !important; /* Increased Base Size */
-        font-weight: 600 !important; /* Bold Text */
-    }
-
     /* Main Background - Deep Space Blue */
     .stApp {
         background: radial-gradient(circle at center, #0a0e17 0%, #000000 100%);
+        color: #ffffff;
     }
     
-    /* Neon Text Glow for Headers */
+    /* Neon Text Glow */
     h1, h2, h3 {
         font-family: 'Orbitron', sans-serif !important;
         color: #00ffcc !important;
-        text-shadow: 0 0 15px rgba(0, 255, 204, 0.9);
-        font-weight: 900 !important;
-        letter-spacing: 1.5px;
+        text-shadow: 0 0 10px rgba(0, 255, 204, 0.7);
     }
     
-    /* Solid, High-Contrast Cards */
+    /* Glassmorphic Cards */
     div[data-testid="stMetric"] {
-        background-color: #0F0F0F; /* Solid Black/Grey - No transparency */
-        border: 2px solid #00ffcc;
-        border-left: 8px solid #00ffcc;
-        border-radius: 10px;
-        padding: 20px;
-        box-shadow: 0 0 20px rgba(0, 255, 204, 0.3);
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-left: 4px solid #00ffcc;
+        border-radius: 12px;
+        padding: 15px;
+        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
     }
     
     /* Huge Numbers */
     [data-testid="stMetricValue"] {
-        font-size: 48px !important;
-        font-weight: 900 !important;
-        color: #FFFFFF !important;
-        text-shadow: 0 0 10px #FFFFFF;
+        font-size: 36px !important;
+        font-weight: 700 !important;
+        color: #ffffff !important;
+        text-shadow: 0 0 10px rgba(0,255,204,0.5);
     }
     
-    /* Metric Labels */
-    [data-testid="stMetricLabel"] {
-        font-size: 22px !important;
-        color: #00ffcc !important;
-        font-weight: bold !important;
-    }
-    
-    /* Sidebar styling */
+    /* Sidebar */
     [data-testid="stSidebar"] {
-        background-color: #000000;
-        border-right: 3px solid #333;
-    }
-    [data-testid="stSidebar"] p, [data-testid="stSidebar"] span {
-        font-size: 18px !important;
-        color: #FFFFFF !important;
+        background-color: #050505;
+        border-right: 1px solid #333;
     }
     
     /* Tab Styling */
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 20px;
+    }
     .stTabs [data-baseweb="tab"] {
-        height: 60px;
-        background-color: #222;
-        border-radius: 5px 5px 0px 0px;
+        height: 50px;
+        white-space: pre-wrap;
+        background-color: #111;
+        border-radius: 4px 4px 0px 0px;
+        gap: 1px;
+        padding-top: 10px;
+        padding-bottom: 10px;
         color: white;
-        font-size: 20px !important;
-        font-weight: bold !important;
     }
     .stTabs [aria-selected="true"] {
         background-color: #00ffcc;
-        color: black !important;
+        color: black;
+        font-weight: bold;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -189,29 +175,30 @@ except Exception as e:
 # 5. SIDEBAR
 # ------------------------------
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/9664/9664977.png", width=120)
+    st.image("https://cdn-icons-png.flaticon.com/512/9664/9664977.png", width=80)
     st.title("SENTINEL CORE")
-    st.caption("v3.1.0 | ENTERPRISE")
+    st.caption("v3.0.0 | ENTERPRISE EDITION")
     st.markdown("---")
     
     st.subheader("🎛️ SYSTEM CONTROLS")
-    threshold = st.slider("SENSITIVITY", 0.0, 1.0, 0.1)
+    threshold = st.slider("THREAT SENSITIVITY", 0.0, 1.0, 0.1)
     
     st.markdown("---")
     st.subheader("🖥️ SYSTEM STATUS")
     
     if model is not None:
-        st.success("🟢 ENGINE: ONLINE")
+        st.markdown("🟢 **ENGINE:** `ONLINE`")
     else:
-        st.error("🔴 ENGINE: OFFLINE")
+        st.markdown("🔴 **ENGINE:** `OFFLINE`")
 
     if torch.cuda.is_available():
         gpu_name = torch.cuda.get_device_name(0)
-        st.success(f"🟢 GPU: {gpu_name}")
+        st.markdown(f"🟢 **ACCELERATION:** `ACTIVE`")
+        st.caption(f"Hardware: {gpu_name}")
     else:
-        st.warning("🟠 GPU: CPU MODE")
+        st.markdown("🟠 **ACCELERATION:** `CPU MODE`")
 
-    st.success("🟢 TUNNEL: TLS 1.3")
+    st.markdown("🟢 **ENCRYPTION:** `TLS 1.3`")
 
 # Header
 col1, col2 = st.columns([1, 8])
@@ -260,9 +247,9 @@ if uploaded_file:
     risk_score = (n_botnets / len(preds)) * 100 if len(preds) > 0 else 0
 
     # ------------------------------
-    # 7. TABBED INTERFACE
+    # 7. TABBED INTERFACE (The Big Upgrade)
     # ------------------------------
-    tab1, tab2, tab3 = st.tabs(["📡 LIVE DASHBOARD", "🌍 GLOBAL THREAT MAP", "⚡ ACTIVE MITIGATION"])
+    tab1, tab2, tab3 = st.tabs(["📡 LIVE MONITOR", "🌍 GLOBAL THREAT MAP", "⚡ MITIGATION"])
 
     # --- TAB 1: DASHBOARD ---
     with tab1:
@@ -282,59 +269,54 @@ if uploaded_file:
             threat_indices = [i for i, p in enumerate(plot_probs) if p > final_threshold]
             if threat_indices:
                 fig.add_scatter(x=threat_indices, y=[plot_probs[i] for i in threat_indices],
-                                mode='markers', marker=dict(color='#ff0033', size=8), name='Intrusion')
-            fig.update_layout(plot_bgcolor='black', paper_bgcolor='black', font=dict(color='white', size=14))
+                                mode='markers', marker=dict(color='#ff0033', size=6), name='Intrusion')
+            fig.update_layout(plot_bgcolor='black', paper_bgcolor='black', font=dict(color='white'))
             st.plotly_chart(fig, use_container_width=True)
 
         with c2:
-            st.markdown("### 🕸️ FLOW PROTOCOLS")
+            st.markdown("### 🕸️ FLOW TOPOLOGY")
+            # Sunburst Chart for Protocol Distribution
             df['Status'] = ["MALICIOUS" if p > final_threshold else "SECURE" for p in probs]
             df['Protocol_Name'] = df['Proto'].apply(lambda x: 'TCP' if str(x)=='tcp' else ('UDP' if str(x)=='udp' else 'OTHER'))
             
             fig_sun = px.sunburst(df.head(1000), path=['Status', 'Protocol_Name'], 
                                   color='Status', color_discrete_map={'MALICIOUS':'#FF0000', 'SECURE':'#00FF99'})
-            fig_sun.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color='white', font=dict(size=16))
+            fig_sun.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color='white')
             st.plotly_chart(fig_sun, use_container_width=True)
 
-    # --- TAB 2: 3D MAP (UPDATED WITH CITIES) ---
+    # --- TAB 2: 3D MAP (The Wow Factor) ---
     with tab2:
         st.markdown("### 🌍 GEO-SPATIAL THREAT INTELLIGENCE")
         if n_botnets > 0:
+            # SIMULATE Geo-Locations for the demo (Since IPs are private)
             st.info("ℹ️ Resolving IP Geolocation from Threat Intelligence Feed...")
             
-            # --- UPDATE: SPECIFIC CITIES ---
-            city_coords = {
-                'New York, US': [40.71, -74.00], 'London, UK': [51.50, -0.12],
-                'Beijing, CN': [39.90, 116.40], 'Moscow, RU': [55.75, 37.61],
-                'Sao Paulo, BR': [-23.55, -46.63], 'Berlin, DE': [52.52, 13.40],
-                'Mumbai, IN': [19.07, 72.87], 'Tokyo, JP': [35.67, 139.65],
-                'Sydney, AU': [-33.86, 151.20], 'Cairo, EG': [30.04, 31.23]
+            # Fake coordinates for major countries to simulate a global attack
+            lat_longs = {
+                'US': [37.09, -95.71], 'CN': [35.86, 104.19], 'RU': [61.52, 105.31], 
+                'BR': [-14.23, -51.92], 'DE': [51.16, 10.45]
             }
             
             map_data = []
-            for _ in range(50): 
-                # Pick a random city
-                city_name, coords = random.choice(list(city_coords.items()))
-                
+            for _ in range(50): # Create 50 fake attack vectors
+                country = random.choice(list(lat_longs.keys()))
+                coords = lat_longs[country]
+                # Add jitter
                 map_data.append({
-                    'lat': coords[0] + random.uniform(-2, 2), # Slight jitter
-                    'lon': coords[1] + random.uniform(-2, 2),
-                    'City': city_name,
+                    'lat': coords[0] + random.uniform(-5, 5),
+                    'lon': coords[1] + random.uniform(-5, 5),
                     'type': 'Attacker Node'
                 })
             
             map_df = pd.DataFrame(map_data)
             
-            # Scatter Geo with City Names in Hover
             fig_map = px.scatter_geo(map_df, lat='lat', lon='lon', 
-                                     projection="orthographic",
-                                     hover_name="City", # SHOW CITY NAME
+                                     projection="orthographic", # 3D Globe
                                      color='type',
                                      color_discrete_map={'Attacker Node': '#ff0033'},
                                      title="ACTIVE ATTACK VECTORS")
-            
-            fig_map.update_geos(bgcolor="black", showcountries=True, countrycolor="#444")
-            fig_map.update_layout(paper_bgcolor="black", font_color="white", height=600, font=dict(size=14))
+            fig_map.update_geos(bgcolor="black", showcountries=True, countrycolor="#333")
+            fig_map.update_layout(paper_bgcolor="black", font_color="white", height=600)
             st.plotly_chart(fig_map, use_container_width=True)
         else:
             st.success("NO ACTIVE GEO-THREATS DETECTED.")
