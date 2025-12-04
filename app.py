@@ -207,7 +207,7 @@ st.markdown("""
 def load_model():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = TransformerClassifier(input_dim=17)
-    model_path = "/content/drive/MyDrive/mini project/transformer_classifier.pt"
+    model_path = "transformer_classifier.pt"
     model.load_state_dict(torch.load(model_path, map_location=device), strict=False)
     model.to(device)
     model.eval()
