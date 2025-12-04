@@ -43,7 +43,6 @@ def get_stable_hash(s):
     return int(hashlib.sha256(str(s).encode('utf-8')).hexdigest(), 16) % 1000
 
 def preprocess_live_data(df):
-    # Working on a copy to avoid modifying original df for visuals
     proc_df = df.copy()
     
     if 'Dur' in proc_df.columns:
@@ -87,13 +86,12 @@ def preprocess_live_data(df):
     return scaled_data
 
 # ------------------------------
-# 3. Report Generator (New Feature)
+# 3. Report Generator
 # ------------------------------
 def generate_text_report(n_threats, risk_score, suspicious_df):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     status = "CRITICAL" if n_threats > 0 else "SECURE"
     
-    # Extract Top Attackers
     top_attackers_str = "No Source IPs found in capture file."
     if 'SrcAddr' in suspicious_df.columns:
         top_attackers = suspicious_df['SrcAddr'].value_counts().head(20).index.tolist()
@@ -144,7 +142,7 @@ st.markdown("""
         text-shadow: 0 0 10px rgba(0, 255, 204, 0.7);
     }
 
-    /* Visibility Fixes for Labels */
+    /* Visibility Fixes */
     [data-testid="stFileUploader"] label, [data-testid="stWidgetLabel"] p, [data-testid="stMetricLabel"] {
         color: #00ffcc !important;
         font-size: 1.1rem !important;
@@ -153,7 +151,6 @@ st.markdown("""
         opacity: 1 !important;
     }
     
-    /* Filename color */
     [data-testid="stFileUploader"] div { color: #ffffff !important; }
 
     /* Glassmorphic Cards */
@@ -181,7 +178,6 @@ st.markdown("""
         border-right: 1px solid #333;
     }
     
-    /* Text Fixes */
     .stMarkdown p { color: #ffffff !important; }
 
     /* Tabs */
@@ -206,8 +202,9 @@ st.markdown("""
 @st.cache_resource
 def load_model():
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = TransformerClassifier(input_dim=17)
-    model_path = "models/transformer_classifier.pt"
+    # Ensure this matches your trained model file
+    model = TransformerClassifier(input_dim=17) 
+    model_path = "transformer_classifier.pt"
     model.load_state_dict(torch.load(model_path, map_location=device), strict=False)
     model.to(device)
     model.eval()
@@ -234,7 +231,6 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("🖥️ SYSTEM STATUS")
 
-    # FIXED: Replaced markdown shortcodes with actual Emojis
     if model is not None:
         st.markdown("🟢 **ENGINE:** `ONLINE`")
     else:
@@ -272,7 +268,6 @@ if uploaded_file:
         st.write(">> ESTABLISHING SECURE HANDSHAKE...")
         time.sleep(0.3)
         st.write(">> PARSING PACKET HEADERS...")
-        # Preprocess for model (Numerical)
         X_processed = preprocess_live_data(df)
         time.sleep(0.3)
         st.write(">> RUNNING TRANSFORMER NEURAL NETWORK...")
@@ -310,7 +305,6 @@ if uploaded_file:
         c1, c2 = st.columns([2, 1])
         with c1:
             st.markdown("### 🌊 TRAFFIC SPECTRUM")
-            # Visualization Logic
             plot_df = df.iloc[:3000].copy() if len(df) > 3000 else df.copy()
             plot_probs = probs[:3000] if len(df) > 3000 else probs
             
@@ -329,14 +323,12 @@ if uploaded_file:
                 showlegend=False,
                 margin=dict(l=0, r=0, t=0, b=0)
             )
-            st.plotly_chart(fig, use_container_width=True)
+            # FIX 1: Updated to width="stretch"
+            st.plotly_chart(fig, width="stretch")
 
         with c2:
             st.markdown("### 🕸️ FLOW TOPOLOGY")
-            # Add Status to the ORIGINAL DataFrame for visuals
             df['Status'] = ["MALICIOUS" if p > final_threshold else "SECURE" for p in probs]
-            
-            # Ensure we use Protocol Names, NOT Hashes for visuals
             if 'Proto' in df.columns:
                 df['Protocol_Name'] = df['Proto'].astype(str)
             else:
@@ -345,7 +337,8 @@ if uploaded_file:
             fig_sun = px.sunburst(df.head(1000), path=['Status', 'Protocol_Name'],
                                   color='Status', color_discrete_map={'MALICIOUS':'#FF0000', 'SECURE':'#00FF99'})
             fig_sun.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color='white', margin=dict(l=0, r=0, t=0, b=0))
-            st.plotly_chart(fig_sun, use_container_width=True)
+            # FIX 2: Updated to width="stretch"
+            st.plotly_chart(fig_sun, width="stretch")
 
     # --- TAB 2: 3D MAP ---
     with tab2:
@@ -391,7 +384,8 @@ if uploaded_file:
             )
             fig_map.update_geos(bgcolor="black", showcountries=True, countrycolor="#333", showland=True, landcolor="#111")
             fig_map.update_layout(paper_bgcolor="black", font_color="white", height=600)
-            st.plotly_chart(fig_map, use_container_width=True)
+            # FIX 3: Updated to width="stretch"
+            st.plotly_chart(fig_map, width="stretch")
         else:
             st.success("NO ACTIVE GEO-THREATS DETECTED.")
 
@@ -414,8 +408,6 @@ if uploaded_file:
 
             with c2:
                 st.markdown("#### 📄 INCIDENT REPORT")
-                
-                # --- FIXED: Use the new Text Report Generator ---
                 report_content = generate_text_report(n_botnets, risk_score, suspicious)
                 
                 st.download_button(
@@ -427,7 +419,8 @@ if uploaded_file:
                 )
 
             st.markdown("#### 🚨 LIVE PACKET INSPECTOR")
-            st.dataframe(suspicious.head(20).style.background_gradient(cmap='Reds'), use_container_width=True)
+            # FIX 4: Updated to width="stretch"
+            st.dataframe(suspicious.head(20).style.background_gradient(cmap='Reds'), width="stretch")
         else:
             st.success("SYSTEM SECURE.")
 
