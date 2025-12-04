@@ -9,6 +9,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import time
 import random
+import hashlib  # <--- NEW IMPORT FOR STABLE HASHING
 
 # ------------------------------
 # 1. Model Architecture
@@ -37,8 +38,15 @@ class TransformerClassifier(nn.Module):
         return self.fc(features)
 
 # ------------------------------
-# 2. Preprocessing Engine
+# 2. Preprocessing Engine (FIXED)
 # ------------------------------
+def get_stable_hash(s):
+    """
+    Returns a deterministic integer hash for a string s.
+    This ensures 'TCP' always maps to the same number, unlike python's hash().
+    """
+    return int(hashlib.sha256(s.encode('utf-8')).hexdigest(), 16) % 1000
+
 def preprocess_live_data(df):
     if 'Dur' in df.columns:
         df.rename(columns={'Dur': 'Duration'}, inplace=True)
@@ -59,9 +67,11 @@ def preprocess_live_data(df):
         if col in df.columns:
             df[col] = np.log1p(df[col])
 
+    # --- LOGIC FIX: USE STABLE HASHING ---
     for col in ['Proto', 'State', 'Dir']:
         if col in df.columns:
-            df[col] = df[col].astype(str).apply(lambda x: hash(x) % 1000)
+            # Replaced hash(x) with get_stable_hash(x)
+            df[col] = df[col].astype(str).apply(lambda x: get_stable_hash(x))
         else:
             df[col] = 0
 
@@ -81,7 +91,7 @@ def preprocess_live_data(df):
     return scaled_data
 
 # ------------------------------
-# 3. Page Config & PREMIUM THEME
+# 3. Page Config & PREMIUM THEME (CSS FIXED)
 # ------------------------------
 st.set_page_config(
     page_title="BOTNET DEFENSE",
@@ -92,17 +102,42 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-    /* Main Background - Deep Space Blue */
+    /* Main Background */
     .stApp {
         background: radial-gradient(circle at center, #0a0e17 0%, #000000 100%);
         color: #ffffff;
     }
 
-    /* Neon Text Glow */
+    /* Neon Headings */
     h1, h2, h3 {
         font-family: 'Orbitron', sans-serif !important;
         color: #00ffcc !important;
         text-shadow: 0 0 10px rgba(0, 255, 204, 0.7);
+    }
+
+    /* --- UI FIX: Make File Uploader Text Visible --- */
+    [data-testid="stFileUploader"] {
+        color: #ffffff;
+    }
+    [data-testid="stFileUploader"] label {
+        color: #00ffcc !important;
+        font-size: 1.1rem;
+        font-weight: bold;
+    }
+    [data-testid="stFileUploader"] section {
+        background-color: rgba(255, 255, 255, 0.05);
+        border: 1px dashed #00ffcc;
+    }
+    /* Fix the filename text color inside the uploader */
+    .stFileUploader div {
+        color: white !important;
+    }
+
+    /* --- UI FIX: Make Metric Labels (Risk Factor) Visible --- */
+    [data-testid="stMetricLabel"] {
+        color: #00ffcc !important;
+        font-size: 1rem !important;
+        font-weight: bold !important;
     }
 
     /* Glassmorphic Cards */
@@ -130,16 +165,13 @@ st.markdown("""
         border-right: 1px solid #333;
     }
 
-    /* Tab Styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 20px;
-    }
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] { gap: 20px; }
     .stTabs [data-baseweb="tab"] {
         height: 50px;
         white-space: pre-wrap;
         background-color: #111;
         border-radius: 4px 4px 0px 0px;
-        gap: 1px;
         padding-top: 10px;
         padding-bottom: 10px;
         color: white;
@@ -160,6 +192,7 @@ def load_model():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = TransformerClassifier(input_dim=17)
     model_path = "/content/drive/MyDrive/mini project/transformer_classifier.pt"
+    # Added map_location to ensure CPU compatibility if GPU isn't available
     model.load_state_dict(torch.load(model_path, map_location=device), strict=False)
     model.to(device)
     model.eval()
@@ -247,7 +280,7 @@ if uploaded_file:
     risk_score = (n_botnets / len(preds)) * 100 if len(preds) > 0 else 0
 
     # ------------------------------
-    # 7. TABBED INTERFACE (The Big Upgrade)
+    # 7. TABBED INTERFACE
     # ------------------------------
     tab1, tab2, tab3 = st.tabs(["📡 LIVE MONITOR", "🌍 GLOBAL THREAT MAP", "⚡ MITIGATION"])
 
@@ -275,43 +308,40 @@ if uploaded_file:
 
         with c2:
             st.markdown("### 🕸️ FLOW TOPOLOGY")
-            # Sunburst Chart for Protocol Distribution
             df['Status'] = ["MALICIOUS" if p > final_threshold else "SECURE" for p in probs]
-            df['Protocol_Name'] = df['Proto'].apply(lambda x: 'TCP' if str(x)=='tcp' else ('UDP' if str(x)=='udp' else 'OTHER'))
+            
+            # Safe access to Proto column
+            if 'Proto' in df.columns:
+                df['Protocol_Name'] = df['Proto'].apply(lambda x: 'TCP' if str(x).lower()=='tcp' else ('UDP' if str(x).lower()=='udp' else 'OTHER'))
+            else:
+                df['Protocol_Name'] = 'UNKNOWN'
 
             fig_sun = px.sunburst(df.head(1000), path=['Status', 'Protocol_Name'],
                                   color='Status', color_discrete_map={'MALICIOUS':'#FF0000', 'SECURE':'#00FF99'})
             fig_sun.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color='white')
             st.plotly_chart(fig_sun, use_container_width=True)
 
-    # --- TAB 2: 3D MAP (The Wow Factor) ---
+    # --- TAB 2: 3D MAP ---
     with tab2:
         st.markdown("### 🌍 GEO-SPATIAL THREAT INTELLIGENCE")
         if n_botnets > 0:
-            # SIMULATE Geo-Locations for the demo (Since IPs are private)
             st.info("ℹ️ Resolving IP Geolocation from Threat Intelligence Feed...")
-
-            # Fake coordinates for major countries to simulate a global attack
             lat_longs = {
                 'US': [37.09, -95.71], 'CN': [35.86, 104.19], 'RU': [61.52, 105.31],
                 'BR': [-14.23, -51.92], 'DE': [51.16, 10.45]
             }
-
             map_data = []
-            for _ in range(50): # Create 50 fake attack vectors
+            for _ in range(50):
                 country = random.choice(list(lat_longs.keys()))
                 coords = lat_longs[country]
-                # Add jitter
                 map_data.append({
                     'lat': coords[0] + random.uniform(-5, 5),
                     'lon': coords[1] + random.uniform(-5, 5),
                     'type': 'Attacker Node'
                 })
-
             map_df = pd.DataFrame(map_data)
-
             fig_map = px.scatter_geo(map_df, lat='lat', lon='lon',
-                                     projection="orthographic", # 3D Globe
+                                     projection="orthographic",
                                      color='type',
                                      color_discrete_map={'Attacker Node': '#ff0033'},
                                      title="ACTIVE ATTACK VECTORS")
@@ -325,15 +355,17 @@ if uploaded_file:
     with tab3:
         if n_botnets > 0:
             st.error("### ⚡ AUTOMATED COUNTERMEASURES")
-
             suspicious = df[probs > final_threshold].copy()
-            attacker_ips = suspicious['SrcAddr'].unique() if 'SrcAddr' in suspicious.columns else []
-
+            
             c1, c2 = st.columns(2)
             with c1:
                 st.markdown("#### 🛡️ FIREWALL RULES (IPTABLES)")
                 code = "# AUTO-GENERATED BLOCKLIST\n"
-                for ip in attacker_ips[:10]: code += f"iptables -A INPUT -s {ip} -j DROP\n"
+                if 'SrcAddr' in suspicious.columns:
+                    attacker_ips = suspicious['SrcAddr'].unique()
+                    for ip in attacker_ips[:10]: code += f"iptables -A INPUT -s {ip} -j DROP\n"
+                else:
+                    code += "# IPs not available in this capture file"
                 st.code(code, language="bash")
 
             with c2:
