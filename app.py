@@ -64,18 +64,18 @@ def preprocess_live_data(df):
 
     if 'proto' in col_map: proc_df.rename(columns={col_map['proto']: 'Proto'}, inplace=True)
     elif 'protocol' in col_map: proc_df.rename(columns={col_map['protocol']: 'Proto'}, inplace=True)
-    
+
     if 'sport' in col_map: proc_df.rename(columns={col_map['sport']: 'Sport'}, inplace=True)
     if 'dport' in col_map: proc_df.rename(columns={col_map['dport']: 'Dport'}, inplace=True)
 
     # --- STEP 3: Critical Safety Check ---
     if 'Duration' not in proc_df.columns:
         st.error(f"❌ CSV ERROR: Missing 'Duration' column. Detected columns: {list(proc_df.columns)}")
-        st.stop() 
+        st.stop()
 
     # --- STEP 4: Feature Engineering ---
     proc_df['Duration'] = proc_df['Duration'].replace(0, 1e-6)
-    
+
     if 'TotBytes' not in proc_df.columns: proc_df['TotBytes'] = 0
     if 'TotPkts' not in proc_df.columns: proc_df['TotPkts'] = 0
     if 'SrcBytes' not in proc_df.columns: proc_df['SrcBytes'] = 0
@@ -128,13 +128,13 @@ def generate_text_report(n_threats, risk_score, suspicious_df):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     status = "CRITICAL" if n_threats > 0 else "SECURE"
     top_attackers_str = "No Source IPs found in capture file."
-    
+
     ip_col = None
     for c in suspicious_df.columns:
         if c.lower().strip() in ['srcaddr', 'src_ip', 'saddr', 'source']:
             ip_col = c
             break
-            
+
     if ip_col:
         top_attackers = suspicious_df[ip_col].value_counts().head(20).index.tolist()
         if top_attackers:
@@ -175,10 +175,10 @@ st.markdown("""
 def load_model():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = TransformerClassifier(input_dim=17)
-    
+
     # --- FIX: Look in the 'models' folder ---
     model_path = "models/transformer_classifier.pt"
-    
+
     # Debugging: Check if file exists
     if not os.path.exists(model_path):
         st.error(f"❌ MODEL NOT FOUND at: {model_path}")
@@ -187,7 +187,7 @@ def load_model():
             st.write("📂 Files inside 'models':", os.listdir("models"))
         else:
             st.write("⚠️ The 'models' folder does not exist in this repo.")
-        
+
         # Fallback: Check root
         if os.path.exists("transformer_classifier.pt"):
             model_path = "transformer_classifier.pt"
@@ -199,7 +199,7 @@ def load_model():
         model.load_state_dict(torch.load(model_path), strict=False)
     else:
         model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')), strict=False)
-        
+
     model.to(device)
     model.eval()
     return model, device
@@ -220,7 +220,7 @@ with st.sidebar:
     st.caption("v3.1.0 | ENTERPRISE EDITION")
     st.markdown("---")
     threshold = st.slider("THREAT SENSITIVITY", 0.0, 1.0, 0.1)
-    
+
     if model is not None:
         st.markdown("🟢 **ENGINE:** `ONLINE`")
     else:
