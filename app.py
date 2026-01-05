@@ -1,4 +1,11 @@
 %%writefile app.py
+import os
+import streamlit as st
+
+# DEBUGGING BLOCK
+st.error("📂 CURRENT DIRECTORY: " + os.getcwd())
+st.error("📄 FILES FOUND HERE: " + str(os.listdir(".")))
+# ----------------
 import streamlit as st
 import pandas as pd
 import torch
