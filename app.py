@@ -9,6 +9,7 @@ import time
 import random
 import hashlib
 from datetime import datetime
+import os
 
 # ------------------------------
 # 1. Model Architecture
@@ -73,8 +74,9 @@ def preprocess_live_data(df):
 
     # --- STEP 3: Critical Safety Check ---
     if 'Duration' not in proc_df.columns:
-        st.error(f"❌ CRITICAL ERROR: Could not find a 'Duration' or 'Dur' column in CSV. Found: {list(proc_df.columns)}")
-        st.stop() # Stops execution here so app doesn't crash
+        # This will show a helpful error message in the UI instead of crashing
+        st.error(f"❌ CSV ERROR: Missing 'Duration' column. Detected columns: {list(proc_df.columns)}")
+        st.stop() 
 
     # --- STEP 4: Feature Engineering ---
     # Avoid Division by Zero
@@ -142,8 +144,16 @@ def generate_text_report(n_threats, risk_score, suspicious_df):
 
     # Extract Top Attackers
     top_attackers_str = "No Source IPs found in capture file."
-    if 'SrcAddr' in suspicious_df.columns:
-        top_attackers = suspicious_df['SrcAddr'].value_counts().head(20).index.tolist()
+    
+    # Dynamic IP column finding for report
+    ip_col = None
+    for c in suspicious_df.columns:
+        if c.lower().strip() in ['srcaddr', 'src_ip', 'saddr', 'source']:
+            ip_col = c
+            break
+            
+    if ip_col:
+        top_attackers = suspicious_df[ip_col].value_counts().head(20).index.tolist()
         if top_attackers:
             top_attackers_str = ", ".join(str(ip) for ip in top_attackers)
 
@@ -256,8 +266,18 @@ def load_model():
     model = TransformerClassifier(input_dim=17)
     
     # --- UPDATE THIS PATH TO YOUR ACTUAL MODEL LOCATION ---
+    # Ensure this path is correct for your Streamlit Cloud environment or local setup
     model_path = "/content/drive/MyDrive/mini project/transformer_classifier.pt"
     
+    # Handle if file doesn't exist (e.g., in Streamlit Cloud)
+    if not os.path.exists(model_path):
+        # Fallback for Streamlit Cloud - assuming model is in root or you need to upload it
+        if os.path.exists("transformer_classifier.pt"):
+             model_path = "transformer_classifier.pt"
+        else:
+             st.warning("⚠️ Model file not found. Please upload 'transformer_classifier.pt' to your repo.")
+             return None, device
+
     if torch.cuda.is_available():
         model.load_state_dict(torch.load(model_path), strict=False)
     else:
@@ -269,8 +289,10 @@ def load_model():
 
 try:
     model, device = load_model()
+    if model is None:
+        st.stop()
 except Exception as e:
-    st.error(f"System Failure: Model not found at path. Error: {e}")
+    st.error(f"System Failure: Model loading error. {e}")
     st.stop()
 
 # ------------------------------
