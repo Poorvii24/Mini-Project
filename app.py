@@ -37,49 +37,97 @@ class TransformerClassifier(nn.Module):
         return self.fc(features)
 
 # ------------------------------
-# 2. Preprocessing Engine (Stable)
+# 2. Preprocessing Engine (ROBUST VERSION)
 # ------------------------------
 def get_stable_hash(s):
     return int(hashlib.sha256(str(s).encode('utf-8')).hexdigest(), 16) % 1000
 
 def preprocess_live_data(df):
+    # Working on a copy to avoid modifying original df for visuals
     proc_df = df.copy()
-    
-    if 'Dur' in proc_df.columns:
-        proc_df.rename(columns={'Dur': 'Duration'}, inplace=True)
 
+    # --- STEP 1: Normalize Columns (Strip spaces) ---
+    proc_df.columns = proc_df.columns.str.strip()
+
+    # --- STEP 2: Intelligent Renaming (Case-Insensitive) ---
+    # Create a map of {lowercase_name: actual_name}
+    col_map = {c.lower(): c for c in proc_df.columns}
+
+    # Try to find Duration
+    if 'duration' in col_map:
+        proc_df.rename(columns={col_map['duration']: 'Duration'}, inplace=True)
+    elif 'dur' in col_map:
+        proc_df.rename(columns={col_map['dur']: 'Duration'}, inplace=True)
+    elif 'time' in col_map:
+        proc_df.rename(columns={col_map['time']: 'Duration'}, inplace=True)
+
+    # Try to find Protocol
+    if 'proto' in col_map:
+        proc_df.rename(columns={col_map['proto']: 'Proto'}, inplace=True)
+    elif 'protocol' in col_map:
+        proc_df.rename(columns={col_map['protocol']: 'Proto'}, inplace=True)
+    
+    # Try to find Source/Dest Ports
+    if 'sport' in col_map: proc_df.rename(columns={col_map['sport']: 'Sport'}, inplace=True)
+    if 'dport' in col_map: proc_df.rename(columns={col_map['dport']: 'Dport'}, inplace=True)
+
+    # --- STEP 3: Critical Safety Check ---
+    if 'Duration' not in proc_df.columns:
+        st.error(f"❌ CRITICAL ERROR: Could not find a 'Duration' or 'Dur' column in CSV. Found: {list(proc_df.columns)}")
+        st.stop() # Stops execution here so app doesn't crash
+
+    # --- STEP 4: Feature Engineering ---
+    # Avoid Division by Zero
     proc_df['Duration'] = proc_df['Duration'].replace(0, 1e-6)
+    
+    # Handle missing columns safely
+    if 'TotBytes' not in proc_df.columns: proc_df['TotBytes'] = 0
+    if 'TotPkts' not in proc_df.columns: proc_df['TotPkts'] = 0
+    if 'SrcBytes' not in proc_df.columns: proc_df['SrcBytes'] = 0
+
     proc_df['BytesPerSec'] = proc_df['TotBytes'] / proc_df['Duration']
     proc_df['PktsPerSec'] = proc_df['TotPkts'] / proc_df['Duration']
-    proc_df['AvgPktSize'] = proc_df['TotBytes'] / proc_df['TotPkts']
-    proc_df['SrcByteRatio'] = proc_df['SrcBytes'] / proc_df['TotBytes']
+    proc_df['AvgPktSize'] = proc_df['TotBytes'] / proc_df['TotPkts'].replace(0, 1)
+    proc_df['SrcByteRatio'] = proc_df['SrcBytes'] / proc_df['TotBytes'].replace(0, 1)
+
+    # Handle Ports
+    if 'Sport' not in proc_df.columns: proc_df['Sport'] = 0
+    if 'Dport' not in proc_df.columns: proc_df['Dport'] = 0
 
     proc_df['Sport'] = pd.to_numeric(proc_df['Sport'], errors='coerce').fillna(0)
     proc_df['Dport'] = pd.to_numeric(proc_df['Dport'], errors='coerce').fillna(0)
     proc_df['Sport_is_priv'] = (proc_df['Sport'] <= 1024).astype(int)
     proc_df['Dport_is_priv'] = (proc_df['Dport'] <= 1024).astype(int)
 
+    # Log Transform
     log_cols = ['TotBytes', 'TotPkts', 'SrcBytes', 'BytesPerSec', 'PktsPerSec', 'AvgPktSize']
     for col in log_cols:
         if col in proc_df.columns:
             proc_df[col] = np.log1p(proc_df[col])
 
+    # Hashing Categoricals
     for col in ['Proto', 'State', 'Dir']:
         if col in proc_df.columns:
             proc_df[col] = proc_df[col].astype(str).apply(lambda x: get_stable_hash(x))
         else:
             proc_df[col] = 0
 
+    # Define Expected Features for Model
     expected_cols = [
         'Duration', 'Proto', 'Sport', 'Dir', 'Dport', 'State', 'sTos', 'dTos',
         'TotPkts', 'TotBytes', 'SrcBytes', 'BytesPerSec', 'PktsPerSec',
         'AvgPktSize', 'SrcByteRatio', 'Sport_is_priv', 'Dport_is_priv'
     ]
 
+    # Assemble Final Dataframe
     final_data = pd.DataFrame()
     for col in expected_cols:
-        final_data[col] = pd.to_numeric(proc_df[col], errors='coerce').fillna(0)
+        if col in proc_df.columns:
+            final_data[col] = pd.to_numeric(proc_df[col], errors='coerce').fillna(0)
+        else:
+            final_data[col] = 0 # Fill missing with 0
 
+    # Scale
     scaler = RobustScaler()
     scaled_data = scaler.fit_transform(final_data)
 
@@ -91,27 +139,28 @@ def preprocess_live_data(df):
 def generate_text_report(n_threats, risk_score, suspicious_df):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     status = "CRITICAL" if n_threats > 0 else "SECURE"
-    
+
+    # Extract Top Attackers
     top_attackers_str = "No Source IPs found in capture file."
     if 'SrcAddr' in suspicious_df.columns:
         top_attackers = suspicious_df['SrcAddr'].value_counts().head(20).index.tolist()
         if top_attackers:
             top_attackers_str = ", ".join(str(ip) for ip in top_attackers)
-    
+
     report = f"""SENTINEL INCIDENT REPORT
             ------------------------
             DATE: {timestamp}
             STATUS: {status}
             THREATS DETECTED: {n_threats}
             RISK SCORE: {risk_score:.2f}%
-            
+
             TOP ATTACKERS (SOURCE IPs):
-    
+
         {top_attackers_str}
-            
+
             RECOMMENDED ACTION:
             1. Apply the firewall blocklist immediately.
-2. Isolate subnet 192.168.x.x (or affected segment)
+            2. Isolate subnet 192.168.x.x (or affected segment)
             3. Reset credentials for compromised IoT devices.
             4. Review port forwarding rules for unusual activity.
 """
@@ -142,7 +191,7 @@ st.markdown("""
         text-shadow: 0 0 10px rgba(0, 255, 204, 0.7);
     }
 
-    /* Visibility Fixes */
+    /* Visibility Fixes for Labels */
     [data-testid="stFileUploader"] label, [data-testid="stWidgetLabel"] p, [data-testid="stMetricLabel"] {
         color: #00ffcc !important;
         font-size: 1.1rem !important;
@@ -150,7 +199,8 @@ st.markdown("""
         visibility: visible !important;
         opacity: 1 !important;
     }
-    
+
+    /* Filename color */
     [data-testid="stFileUploader"] div { color: #ffffff !important; }
 
     /* Glassmorphic Cards */
@@ -177,7 +227,8 @@ st.markdown("""
         background-color: #050505;
         border-right: 1px solid #333;
     }
-    
+
+    /* Text Fixes */
     .stMarkdown p { color: #ffffff !important; }
 
     /* Tabs */
@@ -202,10 +253,16 @@ st.markdown("""
 @st.cache_resource
 def load_model():
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    # Ensure this matches your trained model file
-    model = TransformerClassifier(input_dim=17) 
-    model_path = "models/transformer_classifier.pt"
-    model.load_state_dict(torch.load(model_path, map_location=device), strict=False)
+    model = TransformerClassifier(input_dim=17)
+    
+    # --- UPDATE THIS PATH TO YOUR ACTUAL MODEL LOCATION ---
+    model_path = "/content/drive/MyDrive/mini project/transformer_classifier.pt"
+    
+    if torch.cuda.is_available():
+        model.load_state_dict(torch.load(model_path), strict=False)
+    else:
+        model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')), strict=False)
+        
     model.to(device)
     model.eval()
     return model, device
@@ -213,7 +270,7 @@ def load_model():
 try:
     model, device = load_model()
 except Exception as e:
-    st.error(f"System Failure: {e}")
+    st.error(f"System Failure: Model not found at path. Error: {e}")
     st.stop()
 
 # ------------------------------
@@ -258,6 +315,7 @@ st.divider()
 uploaded_file = st.file_uploader("📂 INJECT PACKET CAPTURE (.CSV)", type=["csv"])
 
 if uploaded_file:
+    # Robust CSV Reading
     try:
         df = pd.read_csv(uploaded_file, on_bad_lines='skip')
     except:
@@ -268,10 +326,16 @@ if uploaded_file:
         st.write(">> ESTABLISHING SECURE HANDSHAKE...")
         time.sleep(0.3)
         st.write(">> PARSING PACKET HEADERS...")
-        X_processed = preprocess_live_data(df)
-        time.sleep(0.3)
-        st.write(">> RUNNING TRANSFORMER NEURAL NETWORK...")
-        status.update(label="✅ ANALYSIS COMPLETE", state="complete", expanded=False)
+        
+        # Preprocess for model (Numerical)
+        try:
+            X_processed = preprocess_live_data(df)
+            time.sleep(0.3)
+            st.write(">> RUNNING TRANSFORMER NEURAL NETWORK...")
+            status.update(label="✅ ANALYSIS COMPLETE", state="complete", expanded=False)
+        except Exception as e:
+            st.error(f"Preprocessing Failed: {e}")
+            st.stop()
 
     # Predict
     X_tensor = torch.tensor(X_processed).float().to(device)
@@ -305,47 +369,56 @@ if uploaded_file:
         c1, c2 = st.columns([2, 1])
         with c1:
             st.markdown("### 🌊 TRAFFIC SPECTRUM")
+            # Visualization Logic
             plot_df = df.iloc[:3000].copy() if len(df) > 3000 else df.copy()
             plot_probs = probs[:3000] if len(df) > 3000 else probs
-            
+
             fig = px.area(y=plot_probs, x=plot_df.index)
             fig.update_traces(line_color='#00ffcc', fillcolor='rgba(0, 255, 204, 0.2)')
-            
+
             threat_indices = [i for i, p in enumerate(plot_probs) if p > final_threshold]
             if threat_indices:
                 fig.add_scatter(x=threat_indices, y=[plot_probs[i] for i in threat_indices],
                                 mode='markers', marker=dict(color='#ff0033', size=5), name='Intrusion')
-                                
+
             fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)', 
-                paper_bgcolor='rgba(0,0,0,0)', 
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
                 font=dict(color='white'),
                 showlegend=False,
                 margin=dict(l=0, r=0, t=0, b=0)
             )
-            # FIX 1: Updated to width="stretch"
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, use_container_width=True)
 
         with c2:
             st.markdown("### 🕸️ FLOW TOPOLOGY")
+            # Add Status to the ORIGINAL DataFrame for visuals
             df['Status'] = ["MALICIOUS" if p > final_threshold else "SECURE" for p in probs]
-            if 'Proto' in df.columns:
-                df['Protocol_Name'] = df['Proto'].astype(str)
+
+            # Ensure we use Protocol Names, NOT Hashes for visuals
+            # Try to find Protocol column dynamically based on our robust renaming
+            proto_col = None
+            for c in df.columns:
+                if c.lower().strip() in ['proto', 'protocol']:
+                    proto_col = c
+                    break
+            
+            if proto_col:
+                df['Protocol_Name'] = df[proto_col].astype(str)
             else:
                 df['Protocol_Name'] = 'UNKNOWN'
 
             fig_sun = px.sunburst(df.head(1000), path=['Status', 'Protocol_Name'],
                                   color='Status', color_discrete_map={'MALICIOUS':'#FF0000', 'SECURE':'#00FF99'})
             fig_sun.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color='white', margin=dict(l=0, r=0, t=0, b=0))
-            # FIX 2: Updated to width="stretch"
-            st.plotly_chart(fig_sun, width="stretch")
+            st.plotly_chart(fig_sun, use_container_width=True)
 
     # --- TAB 2: 3D MAP ---
     with tab2:
         st.markdown("### 🌍 GEO-SPATIAL THREAT INTELLIGENCE (CITY LEVEL)")
         if n_botnets > 0:
             st.info("ℹ️ Resolving IP Geolocation to City Nodes...")
-            
+
             cities = {
                 'New York, USA': [40.7128, -74.0060],
                 'London, UK': [51.5074, -0.1278],
@@ -358,7 +431,7 @@ if uploaded_file:
                 'Sydney, AU': [-33.8688, 151.2093],
                 'Cairo, EG': [30.0444, 31.2357]
             }
-            
+
             map_data = []
             for _ in range(50):
                 city_name = random.choice(list(cities.keys()))
@@ -369,12 +442,12 @@ if uploaded_file:
                     'City': city_name,
                     'type': 'Botnet Node'
                 })
-            
+
             map_df = pd.DataFrame(map_data)
-            
+
             fig_map = px.scatter_geo(
-                map_df, 
-                lat='lat', 
+                map_df,
+                lat='lat',
                 lon='lon',
                 hover_name='City',
                 projection="orthographic",
@@ -384,8 +457,7 @@ if uploaded_file:
             )
             fig_map.update_geos(bgcolor="black", showcountries=True, countrycolor="#333", showland=True, landcolor="#111")
             fig_map.update_layout(paper_bgcolor="black", font_color="white", height=600)
-            # FIX 3: Updated to width="stretch"
-            st.plotly_chart(fig_map, width="stretch")
+            st.plotly_chart(fig_map, use_container_width=True)
         else:
             st.success("NO ACTIVE GEO-THREATS DETECTED.")
 
@@ -394,13 +466,21 @@ if uploaded_file:
         if n_botnets > 0:
             st.error("### ⚡ AUTOMATED COUNTERMEASURES")
             suspicious = df[probs > final_threshold].copy()
-            
+
             c1, c2 = st.columns(2)
             with c1:
                 st.markdown("#### 🛡️ FIREWALL RULES (IPTABLES)")
                 code = "# AUTO-GENERATED BLOCKLIST\n"
-                if 'SrcAddr' in suspicious.columns:
-                    attacker_ips = suspicious['SrcAddr'].unique()
+                
+                # Dynamic IP column finding
+                ip_col = None
+                for c in suspicious.columns:
+                    if c.lower().strip() in ['srcaddr', 'src_ip', 'saddr', 'source']:
+                        ip_col = c
+                        break
+
+                if ip_col:
+                    attacker_ips = suspicious[ip_col].unique()
                     for ip in attacker_ips[:10]: code += f"iptables -A INPUT -s {ip} -j DROP\n"
                 else:
                     code += "# IPs unavailable in this dataset format\n"
@@ -408,8 +488,9 @@ if uploaded_file:
 
             with c2:
                 st.markdown("#### 📄 INCIDENT REPORT")
+
                 report_content = generate_text_report(n_botnets, risk_score, suspicious)
-                
+
                 st.download_button(
                     label="📥 DOWNLOAD FORENSIC REPORT",
                     data=report_content,
@@ -419,8 +500,7 @@ if uploaded_file:
                 )
 
             st.markdown("#### 🚨 LIVE PACKET INSPECTOR")
-            # FIX 4: Updated to width="stretch"
-            st.dataframe(suspicious.head(20).style.background_gradient(cmap='Reds'), width="stretch")
+            st.dataframe(suspicious.head(20).style.background_gradient(cmap='Reds'), use_container_width=True)
         else:
             st.success("SYSTEM SECURE.")
 
