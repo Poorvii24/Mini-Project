@@ -277,11 +277,10 @@ uploaded_file = st.file_uploader("📂 INJECT PACKET CAPTURE (.CSV)", type=["csv
 
 if uploaded_file:
     try:
-        # LIMIT TO 50,000 ROWS TO PREVENT CRASH
-        df = pd.read_csv(uploaded_file, nrows=50000, on_bad_lines='skip') 
+        df = pd.read_csv(uploaded_file, on_bad_lines='skip')
     except:
         uploaded_file.seek(0)
-        df = pd.read_csv(uploaded_file, nrows=50000, encoding='latin-1', on_bad_lines='skip')
+        df = pd.read_csv(uploaded_file, encoding='latin-1', on_bad_lines='skip')
 
     with st.status("🚀 INITIALIZING DEEP SCAN...", expanded=True) as status:
         st.write(">> ESTABLISHING SECURE HANDSHAKE...")
